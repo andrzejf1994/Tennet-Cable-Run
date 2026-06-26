@@ -449,8 +449,33 @@ function createRoad() {
             color: i % 4 < 2 ? COLORS.ROAD_LIGHT : COLORS.ROAD_DARK
         });
 
-        // Generowanie obiektów na poboczu co 6 segmentów (drzewa, budynki, stacje, reklamy)
-        if (i % 6 === 0 && i > 5) {
+        // Generowanie obiektów na poboczu (znaki miast i standardowe dekoracje)
+        const citySigns = {
+            2: "Skawina", // Start sign
+            100: "Kraków 12 km",
+            200: "Wieliczka 8 km",
+            300: "Bochnia 15 km",
+            400: "Brzesko 10 km",
+            500: "Tarnów 55 km",
+            600: "Dębica 30 km",
+            700: "Rzeszów 95 km",
+            800: "Łańcut 12 km",
+            900: "Przeworsk 18 km",
+            1000: "Jarosław 25 km",
+            1100: "Przemyśl 50 km",
+            1180: "Medyka 5 km"
+        };
+        
+        if (citySigns[i]) {
+            roadsideObjects.push({
+                x: 1350, // Right side of the road
+                z: i * CONFIG.segmentLength,
+                y: 0,
+                type: 'city_sign',
+                cityName: citySigns[i],
+                scale: 1.1
+            });
+        } else if (i % 6 === 0 && i > 5) {
             const isLeft = Math.random() > 0.5;
             // Droga ma 2000 jednostek szerokości (-1000 lewa krawędź, 1000 prawa)
             // Pobocze zaczyna się powyżej 1400 jednostek
@@ -1402,6 +1427,13 @@ function renderScene() {
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, width, height * 0.45);
     
+    // 1.5 Rysowanie tła ziemi (trawa) jako płynny gradient (usuwa efekt poziomych pasków)
+    const grassGrad = ctx.createLinearGradient(0, height * 0.45, 0, height);
+    grassGrad.addColorStop(0, currentColors.GRASS_DARK);
+    grassGrad.addColorStop(1, currentColors.GRASS_LIGHT);
+    ctx.fillStyle = grassGrad;
+    ctx.fillRect(0, height * 0.45, width, height * 0.55);
+    
     // Słońce / Księżyc na horyzoncie
     const phase = currentColors.phase;
     
@@ -1507,7 +1539,7 @@ function renderScene() {
         const p1Screen = projectPoint(p1World, cameraX, cameraY, cameraZ, width, height, 0);
         const p2Screen = projectPoint(p2World, cameraX, cameraY, cameraZ, width, height, 0);
         
-        if (!p1Screen || !p2Screen || p1Screen.y >= height || p2Screen.y >= p1Screen.y) {
+        if (!p1Screen || !p2Screen || p2Screen.y >= p1Screen.y || p2Screen.y >= height) {
             continue;
         }
         
@@ -1524,10 +1556,6 @@ function renderScene() {
         const p1 = item.p1;
         const p2 = item.p2;
         const color = item.segment.color;
-        
-        // A. Pobocze (Trawa/Kraj) z dobowymi kolorami
-        ctx.fillStyle = (item.segment.index % 6 < 3) ? currentColors.GRASS_LIGHT : currentColors.GRASS_DARK;
-        ctx.fillRect(0, p2.y, width, p1.y - p2.y);
         
         // B. Krawężnik (Rumble strips)
         const rumbleW1 = p1.w * 0.12;
@@ -1644,23 +1672,27 @@ function renderScene() {
         }
     });
 
-    // Dodaj obiekty na poboczu (dekoracje)
+    // Dodaj obiekty na poboczu (dekoracje) z obsługą nieskończonego zapętlenia drogi
+    const maxZ = maxSegments * CONFIG.segmentLength;
     roadsideObjects.forEach(obj => {
-        const transZ = obj.z - cameraZ;
+        let objVirtualZ = obj.z + Math.floor((cameraZ - obj.z) / maxZ) * maxZ;
+        if (objVirtualZ < cameraZ) objVirtualZ += maxZ;
+        
+        const transZ = objVirtualZ - cameraZ;
         if (transZ > 0 && transZ < CONFIG.drawDistance * CONFIG.segmentLength) {
-            const seg = findSegment(obj.z);
+            const seg = findSegment(objVirtualZ);
             const yOffset = seg ? seg.world.p1.y : 0;
             
             const pt = {
                 x: obj.x + (seg ? seg.world.p1.x : 0),
                 y: yOffset + obj.y,
-                z: obj.z
+                z: objVirtualZ
             };
             const screen = projectPoint(pt, cameraX, cameraY, cameraZ, width, height, 0);
             if (screen) {
                 spritesToRender.push({
                     type: 'decoration',
-                    z: obj.z,
+                    z: objVirtualZ,
                     screen: screen,
                     data: obj
                 });
@@ -1933,7 +1965,7 @@ function drawTenneTTruck(ctx, screen, data) {
     ctx.fill();
     
     // 2. Koła bliźniacze (Tył)
-    ctx.fillStyle = '#0A0A0A';
+    ctx.fillStyle = '#0F0F0F';
     // Lewe koła
     ctx.fillRect(-w * 0.47, -h * 0.18, w * 0.13, h * 0.22);
     ctx.fillRect(-w * 0.32, -h * 0.18, w * 0.11, h * 0.22);
@@ -1941,17 +1973,36 @@ function drawTenneTTruck(ctx, screen, data) {
     ctx.fillRect(w * 0.21, -h * 0.18, w * 0.11, h * 0.22);
     ctx.fillRect(w * 0.34, -h * 0.18, w * 0.13, h * 0.22);
     
+    // Felgi metalowe (hubs) na kołach
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(-w * 0.43, -h * 0.12, w * 0.05, h * 0.1);
+    ctx.fillRect(-w * 0.29, -h * 0.12, w * 0.05, h * 0.1);
+    ctx.fillRect(w * 0.24, -h * 0.12, w * 0.05, h * 0.1);
+    ctx.fillRect(w * 0.38, -h * 0.12, w * 0.05, h * 0.1);
+    ctx.fillStyle = '#888888';
+    ctx.fillRect(-w * 0.42, -h * 0.09, w * 0.03, h * 0.05);
+    ctx.fillRect(-w * 0.28, -h * 0.09, w * 0.03, h * 0.05);
+    ctx.fillRect(w * 0.25, -h * 0.09, w * 0.03, h * 0.05);
+    ctx.fillRect(w * 0.39, -h * 0.09, w * 0.03, h * 0.05);
+    
     // Fartuchy przeciwbłotne
-    ctx.fillStyle = '#1A1A1A';
+    ctx.fillStyle = '#111111';
     ctx.fillRect(-w * 0.48, 0, w * 0.28, h * 0.08);
     ctx.fillRect(w * 0.2, 0, w * 0.28, h * 0.08);
     
+    // Białe napisy "TenneT" na fartuchach
+    ctx.fillStyle = '#888';
+    ctx.font = `bold ${Math.round(h * 0.045)}px Orbitron`;
+    ctx.textAlign = 'center';
+    ctx.fillText("tennet", -w * 0.34, h * 0.055);
+    ctx.fillText("tennet", w * 0.34, h * 0.055);
+    
     // 3. Podwozie
-    ctx.fillStyle = '#222933';
+    ctx.fillStyle = '#181E26';
     ctx.fillRect(-w * 0.42, -h * 0.28, w * 0.84, h * 0.15);
     
     // Rura wydechowa (po lewej stronie)
-    ctx.fillStyle = '#555';
+    ctx.fillStyle = '#444';
     ctx.fillRect(-w * 0.28, -h * 0.24, w * 0.04, h * 0.06);
     
     // 4. Skrzynia Ładunkowa / Kontener (Styl TenneT: Orange/Dark Blue)
@@ -1960,6 +2011,66 @@ function drawTenneTTruck(ctx, screen, data) {
     ctx.beginPath();
     ctx.roundRect(-w * 0.48, -h * 0.9, w * 0.96, h * 0.65, 4 * scale);
     ctx.fill();
+    
+    // Pionowa linia podziału drzwi z tyłu (tylna klapa lub drzwi)
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.lineWidth = Math.max(1, 2 * scale);
+    ctx.beginPath();
+    ctx.moveTo(0, -h * 0.9);
+    ctx.lineTo(0, -h * 0.35);
+    ctx.stroke();
+    
+    // Rygle metalowe (srebrne pionowe pręty zamykające drzwi naczepy)
+    ctx.fillStyle = '#CCCCCC'; // Silver/gray
+    const barW = w * 0.025;
+    ctx.fillRect(-w * 0.15, -h * 0.88, barW, h * 0.5);
+    ctx.fillRect(w * 0.15 - barW, -h * 0.88, barW, h * 0.5);
+    
+    // Klamki/zamki rygli na dole
+    ctx.fillStyle = '#222222';
+    ctx.fillRect(-w * 0.17, -h * 0.42, w * 0.05, h * 0.03);
+    ctx.fillRect(w * 0.12, -h * 0.42, w * 0.05, h * 0.03);
+    
+    // Zawiasy drzwi po lewej i prawej stronie (po 3 z każdej strony)
+    ctx.fillStyle = '#333333';
+    const hingeH = h * 0.04;
+    const hingeW = w * 0.03;
+    const hingeYPositions = [-h * 0.82, -h * 0.62, -h * 0.42];
+    hingeYPositions.forEach(hy => {
+        ctx.fillRect(-w * 0.49, hy, hingeW, hingeH);
+        ctx.fillRect(w * 0.49 - hingeW, hy, hingeW, hingeH);
+    });
+
+    // Naklejki ograniczenia prędkości z lewej strony (80 i 90)
+    const drawSpeedDecal = (cx, cy, number) => {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(cx, cy, w * 0.045, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = '#D32F2F';
+        ctx.lineWidth = Math.max(1, 1.5 * scale);
+        ctx.stroke();
+        
+        ctx.fillStyle = '#000000';
+        ctx.font = `bold ${Math.round(w * 0.055)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(number, cx, cy);
+    };
+    drawSpeedDecal(-w * 0.36, -h * 0.42, "80");
+    drawSpeedDecal(-w * 0.24, -h * 0.42, "90");
+    
+    // Odblaskowa taśma konturowa (żółto-czerwona linia na krawędzi)
+    ctx.strokeStyle = '#FFCC00'; // Yellow tape
+    ctx.lineWidth = Math.max(1, 1.5 * scale);
+    ctx.setLineDash([4 * scale, 4 * scale]);
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.46, -h * 0.88);
+    ctx.lineTo(-w * 0.46, -h * 0.36);
+    ctx.lineTo(w * 0.46, -h * 0.36);
+    ctx.lineTo(w * 0.46, -h * 0.88);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset dash
     
     // Pasy ostrzegawcze na dole skrzyni
     ctx.fillStyle = '#111';
@@ -1987,9 +2098,23 @@ function drawTenneTTruck(ctx, screen, data) {
     }
     ctx.restore();
     
+    // Polska tablica rejestracyjna w środku zderzaka (KRA 7788)
+    const plateW = w * 0.22;
+    const plateH = h * 0.06;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(-plateW / 2, -h * 0.12, plateW, plateH);
+    // Unijny niebieski pasek po lewej
+    ctx.fillStyle = '#003399';
+    ctx.fillRect(-plateW / 2, -h * 0.12, plateW * 0.15, plateH);
+    // Tekst rejestracji
+    ctx.fillStyle = '#111111';
+    ctx.font = `bold ${Math.round(plateH * 0.7)}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText("KRA 7788", plateW * 0.08, -h * 0.09);
+    
     // Górna plandeka / Kontener (Ciemny Granat)
     ctx.fillStyle = '#0B1E36';
-    ctx.beginPath();
     ctx.roundRect(-w * 0.48, -h * 1.15, w * 0.96, h * 0.3, [6 * scale, 6 * scale, 0, 0]);
     ctx.fill();
     
@@ -1998,7 +2123,7 @@ function drawTenneTTruck(ctx, screen, data) {
     ctx.font = `bold ${Math.round(h * 0.14)}px Orbitron`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText("tennet", 0, -h * 1.0);
+    ctx.fillText("tennet", 0, -h * 1.02);
     
     // Dodatkowa pomarańczowa fala/krzywa z logo TenneT
     ctx.strokeStyle = COLORS.SUN;
@@ -2008,30 +2133,79 @@ function drawTenneTTruck(ctx, screen, data) {
     ctx.bezierCurveTo(-w * 0.1, -h * 1.08, w * 0.1, -h * 0.88, w * 0.28, -h * 1.02);
     ctx.stroke();
     
-    // 5. Ładunek: Bębny z przewodami widoczne z tyłu
-    // Rysujemy zarys jednego lub dwóch bębnów w środku naczepy (prześwit)
-    ctx.fillStyle = '#131A24';
-    ctx.fillRect(-w * 0.42, -h * 0.82, w * 0.84, h * 0.45); // Cień wnętrza naczepy
+    // 5. Ładunek: Bębny z przewodami widoczne z tyłu (Realistyczny model wektorowy)
+    ctx.fillStyle = '#080D14'; // Bardzo ciemne wnętrze naczepy
+    ctx.fillRect(-w * 0.43, -h * 0.82, w * 0.86, h * 0.44);
     
-    // Zarysy bębnów wewnątrz
-    ctx.fillStyle = '#7C4425'; // Drewno bębnów
-    ctx.beginPath();
-    ctx.arc(-w * 0.18, -h * 0.6, w * 0.18, 0, 2 * Math.PI);
-    ctx.arc(w * 0.18, -h * 0.6, w * 0.18, 0, 2 * Math.PI);
-    ctx.fill();
+    // Rysujemy deski podłogi/ramy naczepy w środku
+    ctx.strokeStyle = '#1F2937';
+    ctx.lineWidth = 1;
+    for (let lx = -w * 0.4; lx < w * 0.4; lx += w * 0.1) {
+        ctx.beginPath();
+        ctx.moveTo(lx, -h * 0.82);
+        ctx.lineTo(lx, -h * 0.38);
+        ctx.stroke();
+    }
     
-    ctx.fillStyle = '#D35400'; // Uzwojenie kabla w bębnach
-    ctx.beginPath();
-    ctx.arc(-w * 0.18, -h * 0.6, w * 0.13, 0, 2 * Math.PI);
-    ctx.arc(w * 0.18, -h * 0.6, w * 0.13, 0, 2 * Math.PI);
-    ctx.fill();
+    // Dwa bębny - lewy i prawy
+    const drawDrumInTrailer = (cx, cy, r) => {
+        // Zewnętrzny kołnierz (drewno)
+        ctx.fillStyle = '#5A301A';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Słoje drewna / deski na kołnierzu
+        ctx.strokeStyle = '#3D2011';
+        ctx.lineWidth = Math.max(1, 1.5 * scale);
+        for (let angle = 0; angle < 360; angle += 45) {
+            const rad = angle * Math.PI / 180;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(rad) * r, cy + Math.sin(rad) * r);
+            ctx.stroke();
+        }
+        
+        // Zwoje kabli (niebieski/pomarańczowy)
+        ctx.fillStyle = '#0070C0'; // Niebieski kabel
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.75, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Linie zwojów kabla
+        ctx.strokeStyle = '#00A0FF';
+        ctx.lineWidth = Math.max(1, 2 * scale);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.6, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.45, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // Wewnętrzna tarcza drewniana
+        ctx.fillStyle = '#5A301A';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.3, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Otwór centralny (metalowy trzpień)
+        ctx.fillStyle = '#111111';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.1, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Metalowe śruby na kołnierzu
+        ctx.fillStyle = '#999999';
+        for (let angle = 22.5; angle < 360; angle += 45) {
+            const rad = angle * Math.PI / 180;
+            ctx.beginPath();
+            ctx.arc(cx + Math.cos(rad) * (r * 0.88), cy + Math.sin(rad) * (r * 0.88), r * 0.05, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    };
     
-    // Ciemne osie bębnów
-    ctx.fillStyle = '#111';
-    ctx.beginPath();
-    ctx.arc(-w * 0.18, -h * 0.6, w * 0.03, 0, 2 * Math.PI);
-    ctx.arc(w * 0.18, -h * 0.6, w * 0.03, 0, 2 * Math.PI);
-    ctx.fill();
+    drawDrumInTrailer(-w * 0.2, -h * 0.6, w * 0.2);
+    drawDrumInTrailer(w * 0.2, -h * 0.6, w * 0.2);
     
     // Klapa tyłu zderzaka (otwarta naczepa, skąd wypadają bębny)
     ctx.fillStyle = '#2D3748';
@@ -2373,13 +2547,43 @@ function blendColors(c1, c2, weight) {
 
 // Draws roadside obstacles (trees, buildings, gas stations, billboards) with custom vector art
 function drawRoadsideObject(ctx, screen, data) {
+    const scale = screen.scale;
     const w = screen.w * 0.25 * data.scale; // Base width of the object
     const x = screen.x;
     const y = screen.y;
     
     ctx.save();
     
-    if (data.type === 'tree') {
+    if (data.type === 'city_sign') {
+        const h = w * 0.95;
+        const boardH = h * 0.45;
+        const boardW = w * 1.5;
+        const poleW = w * 0.08;
+        
+        // Wspornik (słupek metalowy)
+        ctx.fillStyle = '#6E7A8A';
+        ctx.fillRect(x - poleW / 2, y - h, poleW, h);
+        
+        // Tylna metalowa rama ochronna (delikatny ciemny obrys)
+        ctx.fillStyle = '#1C2E20';
+        ctx.fillRect(x - boardW / 2 - 2 * scale, y - h - 2 * scale, boardW + 4 * scale, boardH + 4 * scale);
+        
+        // Główna zielona tablica (polski znak drogowy)
+        ctx.fillStyle = '#0F6938'; // Polski zielony drogowy
+        ctx.fillRect(x - boardW / 2, y - h, boardW, boardH);
+        
+        // Biała ramka wokół tablicy
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = Math.max(1, 2 * scale);
+        ctx.strokeRect(x - boardW / 2 + 3 * scale, y - h + 3 * scale, boardW - 6 * scale, boardH - 6 * scale);
+        
+        // Tekst (Nazwa miejscowości)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = `bold ${Math.round(boardH * 0.42)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(data.cityName || "Skawina", x, y - h + boardH / 2);
+    } else if (data.type === 'tree') {
         const h = w * 1.8;
         const trunkW = w * 0.18;
         const trunkH = h * 0.25;
