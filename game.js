@@ -401,6 +401,13 @@ window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
     
+    // Wyczyść stare/testowe rekordy z localStorage przy aktualizacji wersji
+    const SCORE_VERSION = 'v2'; // zmień przy każdym globalnym resecie rekordów
+    if (localStorage.getItem('tennet_score_ver') !== SCORE_VERSION) {
+        localStorage.removeItem('tennet_scores');
+        localStorage.setItem('tennet_score_ver', SCORE_VERSION);
+    }
+    
     setupInputListeners();
     setupMenuListeners();
     loadLeaderboard();
@@ -2680,22 +2687,21 @@ function drawParticle(ctx, screen, data) {
 // ZAPISYWANIE I OBSŁUGA REKORDÓW (Leaderboard LocalStorage)
 // ==========================================================================
 function loadLeaderboard() {
-    // 1. Spróbuj pobrać z API serwera
+    // 1. Spróbuj pobrać z globalnego API serwera
     fetch('/api/scores')
         .then(response => {
-            if (!response.ok) throw new Error("HTTP error " + response.status);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
             return response.json();
         })
         .then(scores => {
             if (Array.isArray(scores)) {
+                // Aktualizuj lokalny backup
+                try { localStorage.setItem('tennet_scores', JSON.stringify(scores)); } catch(e) {}
                 displayLeaderboard(scores);
-                // Zapisz też lokalnie dla backupu
-                localStorage.setItem('tennet_scores', JSON.stringify(scores));
             }
         })
         .catch(err => {
-            console.warn("Could not load scores from API, falling back to localStorage:", err);
-            // Fallback: localStorage
+            console.warn('Nie można pobrać wyników z serwera, używam localStorage:', err);
             loadLeaderboardLocal();
         });
 }
@@ -2705,35 +2711,36 @@ function loadLeaderboardLocal() {
     try {
         scores = JSON.parse(localStorage.getItem('tennet_scores'));
     } catch (e) {
-        console.error("Failed to parse leaderboard scores from localStorage:", e);
+        scores = null;
     }
-    
-    if (!scores || !Array.isArray(scores)) {
-        scores = [
-            { name: "KIEROWCA A", score: 1200 },
-            { name: "KIEROWCA B", score: 800 },
-            { name: "KIEROWCA C", score: 400 }
-        ];
-        try {
-            localStorage.setItem('tennet_scores', JSON.stringify(scores));
-        } catch (e) {
-            console.error("Failed to write default scores to localStorage:", e);
-        }
-    }
+    // Pokaż tylko prawdziwe wyniki – bez fake placeholderów
+    if (!scores || !Array.isArray(scores)) scores = [];
     displayLeaderboard(scores);
 }
 
 function displayLeaderboard(scores) {
-    scores.sort((a, b) => b.score - a.score);
+    scores = [...scores].sort((a, b) => b.score - a.score);
     const listEl = document.getElementById('leaderboard-list');
-    if (listEl) {
-        listEl.innerHTML = '';
-        scores.slice(0, 3).forEach((item, index) => {
-            const li = document.createElement('li');
-            li.innerHTML = `<span class="rank">${index + 1}.</span> <span class="name">${item.name.toUpperCase()}</span> <span class="score">${item.score}m</span>`;
-            listEl.appendChild(li);
-        });
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (scores.length === 0) {
+        const li = document.createElement('li');
+        li.style.cssText = 'color: var(--text-muted); font-style: italic; justify-content: center;';
+        li.textContent = 'Brak wyników – bądź pierwszy!';
+        listEl.appendChild(li);
+        return;
     }
+    // Medale dla top 3
+    const medals = ['🥇', '🥈', '🥉'];
+    scores.slice(0, 10).forEach((item, index) => {
+        const li = document.createElement('li');
+        const rank = index < 3
+            ? `<span class="rank">${medals[index]}</span>`
+            : `<span class="rank">${index + 1}.</span>`;
+        li.innerHTML = `${rank} <span class="name">${item.name.toUpperCase()}</span> <span class="score">${item.score}m</span>`;
+        if (index === 0) li.style.cssText = 'color: #FFD700;';
+        listEl.appendChild(li);
+    });
 }
 
 function checkIsHighScore(score) {
