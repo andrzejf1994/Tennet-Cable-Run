@@ -344,7 +344,9 @@ let player = {
     invincibleTime: 0, // Czas nieśmiertelności po zderzeniu
     steerAngle: 0,    // Kąt pochylenia samochodu przy skręcaniu
     isBraking: false,
-    carColor: '#C0C0C0' // Domyślnie srebrny (Toyota Camry)
+    carColor: '#C0C0C0', // Domyślnie srebrny
+    name: 'KIEROWCA',
+    vehicleType: 'car'  // 'car' lub 'forklift'
 };
 
 let truck = {
@@ -402,6 +404,13 @@ window.addEventListener('DOMContentLoaded', () => {
     setupInputListeners();
     setupMenuListeners();
     loadLeaderboard();
+    
+    // Przywracanie zapisanego imienia gracza
+    const savedName = localStorage.getItem('tennet_last_name');
+    const nameInput = document.getElementById('player-name-start');
+    if (savedName && nameInput) {
+        nameInput.value = savedName;
+    }
     
     // Utworzenie stałej trasy autostrady
     createRoad();
@@ -632,10 +641,27 @@ function setupMenuListeners() {
         gameState = 'START';
     });
 
-    // Zapisywanie rekordu
-    document.getElementById('btn-submit-score').addEventListener('click', () => {
-        saveHighScore();
+    // Wybór pojazdu - przyciski na ekranie startowym i w ustawieniach
+    function syncVehicleButtons(vehicleType) {
+        // Start screen buttons
+        document.querySelectorAll('#menu-start .vehicle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.vehicle === vehicleType);
+        });
+        // Modal buttons
+        document.querySelectorAll('#settings-modal .vehicle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.vehicle === vehicleType);
+        });
+        player.vehicleType = vehicleType;
+    }
+    // Expose for applySettings
+    window.syncVehicleButtons = syncVehicleButtons;
+    
+    document.querySelectorAll('.vehicle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            syncVehicleButtons(btn.dataset.vehicle);
+        });
     });
+
 }
 
 function showMenu(id) {
@@ -668,6 +694,14 @@ function applySettings() {
     audio.sfxVolume = volSfx / 100;
     player.carColor = carColor;
     
+    // Sync modal vehicle buttons back to main screen buttons
+    const activeModalBtn = document.querySelector('#settings-modal .vehicle-btn.active');
+    if (activeModalBtn) {
+        const vt = activeModalBtn.dataset.vehicle;
+        player.vehicleType = vt;
+        syncVehicleButtons(vt);
+    }
+    
     // Aktualizacja głośności w czasie rzeczywistym
     if (audio.masterVolumeNode) {
         // master volume nie zmieniamy, zmieniamy music i sfx w audio managerze
@@ -682,6 +716,21 @@ function applySettings() {
 // ROZGRYWKA (Pętla i Aktualizacja Fizyki)
 // ==========================================================================
 function startGame() {
+    // Pobierz imię gracza z pola przed startem
+    const nameInput = document.getElementById('player-name-start');
+    if (nameInput) {
+        let name = nameInput.value.trim().toUpperCase().substring(0, 8);
+        if (!name) name = "KIEROWCA";
+        player.name = name;
+        localStorage.setItem('tennet_last_name', name);
+    }
+    
+    // Pobierz wybrany pojazd z interfejsu
+    const activeVehicleBtn = document.querySelector('#menu-start .vehicle-btn.active');
+    if (activeVehicleBtn) {
+        player.vehicleType = activeVehicleBtn.dataset.vehicle || 'car';
+    }
+
     // Reset stanu
     player.x = 0;
     player.z = 0;
@@ -756,11 +805,12 @@ function gameOver() {
     const isNewHigh = checkIsHighScore(finalDist);
     if (isNewHigh) {
         document.getElementById('new-record-banner').classList.remove('hidden');
-        document.getElementById('high-score-input-container').classList.remove('hidden');
     } else {
         document.getElementById('new-record-banner').classList.add('hidden');
-        document.getElementById('high-score-input-container').classList.add('hidden');
     }
+    
+    // Automatyczny zapis wyniku pod imieniem wybranym przed startem
+    saveHighScore(player.name, finalDist);
     
     showMenu('menu-gameover');
     
@@ -1733,7 +1783,11 @@ function renderScene() {
     
     // Jeśli gracz jest po kolizji, migocze (invincibleTime)
     if (player.invincibleTime <= 0 || Math.floor(player.invincibleTime / 100) % 2 === 0) {
-        drawPlayerCar(ctx, playerScreenX, playerScreenY, width * 0.22, player.steerAngle, player.isBraking);
+        if (player.vehicleType === 'forklift') {
+            drawForklift(ctx, playerScreenX, playerScreenY, width * 0.22, player.steerAngle, player.isBraking);
+        } else {
+            drawPlayerCar(ctx, playerScreenX, playerScreenY, width * 0.22, player.steerAngle, player.isBraking);
+        }
     }
 }
 
@@ -1921,7 +1975,7 @@ function drawPlayerCar(ctx, x, y, width, steerAngle, isBraking) {
     ctx.fillStyle = '#000000';
     ctx.font = `bold ${Math.round(h * 0.07)}px Inter`;
     ctx.textAlign = 'center';
-    ctx.fillText("CAMRY", 0, -h * 0.30);
+    ctx.fillText((player.name || "KIEROWCA").toUpperCase(), 0, -h * 0.30);
     
     ctx.restore();
     
@@ -1948,6 +2002,202 @@ function drawPlayerCar(ctx, x, y, width, steerAngle, isBraking) {
         ctx.moveTo(x + width * 0.35, y - 5);
         ctx.lineTo(x + width * 2.2, y - 220);
         ctx.lineTo(x + width * 0.1, y - 250);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+// ==========================================================================
+// RYSOWANIE WÓZKA WIDŁOWEGO GRACZA (Forklift - rear view)
+// ==========================================================================
+function drawForklift(ctx, x, y, width, steerAngle, isBraking) {
+    const h = width * 0.70;
+    const forkColor = '#F5A623';
+    const bodyColor = '#E8821A';
+    const cageColor = '#CC6600';
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(steerAngle * 0.4);
+
+    // 1. Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(0, h * 0.03, width * 0.45, h * 0.10, 0, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // 2. Large drive wheels (rear)
+    ctx.fillStyle = '#101010';
+    ctx.beginPath();
+    ctx.roundRect(-width * 0.40, -h * 0.25, width * 0.14, h * 0.30, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(width * 0.26, -h * 0.25, width * 0.14, h * 0.30, 4);
+    ctx.fill();
+    // Wheel rims
+    ctx.fillStyle = '#444';
+    ctx.beginPath();
+    ctx.arc(-width * 0.33, -h * 0.10, width * 0.045, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(width * 0.33, -h * 0.10, width * 0.045, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // 3. Main boxy body
+    const bodyGrad = ctx.createLinearGradient(0, -h * 0.85, 0, -h * 0.20);
+    bodyGrad.addColorStop(0, blendColors(bodyColor, '#FFFFFF', 0.25));
+    bodyGrad.addColorStop(0.5, bodyColor);
+    bodyGrad.addColorStop(1.0, blendColors(bodyColor, '#000000', 0.30));
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.roundRect(-width * 0.38, -h * 0.85, width * 0.76, h * 0.65, 6);
+    ctx.fill();
+
+    // Body panel line
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.38, -h * 0.55);
+    ctx.lineTo(width * 0.38, -h * 0.55);
+    ctx.stroke();
+
+    // Black-yellow safety stripes on lower body
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-width * 0.38, -h * 0.38, width * 0.76, h * 0.18);
+    ctx.clip();
+    const stripeW = width * 0.10;
+    for (let si = -width * 0.4; si < width * 0.5; si += stripeW * 2) {
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(si, -h * 0.38, stripeW, h * 0.18);
+        ctx.fillStyle = '#1A1A1A';
+        ctx.fillRect(si + stripeW, -h * 0.38, stripeW, h * 0.18);
+    }
+    ctx.restore();
+
+    // 4. Roll cage (overhead guard)
+    ctx.strokeStyle = cageColor;
+    ctx.lineWidth = width * 0.045;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.32, -h * 0.86);
+    ctx.lineTo(-width * 0.32, -h * 1.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(width * 0.32, -h * 0.86);
+    ctx.lineTo(width * 0.32, -h * 1.28);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.32, -h * 1.28);
+    ctx.lineTo(width * 0.32, -h * 1.28);
+    ctx.stroke();
+    // Diagonal braces
+    ctx.lineWidth = width * 0.022;
+    ctx.strokeStyle = blendColors(cageColor, '#000000', 0.15);
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.32, -h * 1.28);
+    ctx.lineTo(-width * 0.10, -h * 0.86);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(width * 0.32, -h * 1.28);
+    ctx.lineTo(width * 0.10, -h * 0.86);
+    ctx.stroke();
+
+    // 5. Driver seat area
+    ctx.fillStyle = '#1A1A1A';
+    ctx.beginPath();
+    ctx.roundRect(-width * 0.18, -h * 0.84, width * 0.36, h * 0.14, 4);
+    ctx.fill();
+    // Steering wheel
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, -h * 0.80, width * 0.07, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -h * 0.73);
+    ctx.lineTo(0, -h * 0.87);
+    ctx.stroke();
+
+    // 6. Warning beacon on top of cage
+    ctx.fillStyle = '#FFD700';
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(0, -h * 1.32, width * 0.055, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#555';
+    ctx.fillRect(-width * 0.015, -h * 1.28, width * 0.03, h * 0.05);
+
+    // 7. Mast uprights (bottom/front of forklift)
+    ctx.fillStyle = blendColors(bodyColor, '#000000', 0.40);
+    ctx.fillRect(-width * 0.07, -h * 0.20, width * 0.04, h * 0.22);
+    ctx.fillRect(width * 0.03, -h * 0.20, width * 0.04, h * 0.22);
+
+    // 8. Forks (horizontal prongs)
+    ctx.fillStyle = forkColor;
+    ctx.fillRect(-width * 0.34, -h * 0.05, width * 0.16, h * 0.04);
+    ctx.fillRect(width * 0.18, -h * 0.05, width * 0.16, h * 0.04);
+    // Fork tips
+    ctx.beginPath();
+    ctx.moveTo(-width * 0.18, -h * 0.05);
+    ctx.lineTo(-width * 0.14, -h * 0.03);
+    ctx.lineTo(-width * 0.14, -h * 0.07);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(width * 0.34, -h * 0.05);
+    ctx.lineTo(width * 0.30, -h * 0.03);
+    ctx.lineTo(width * 0.30, -h * 0.07);
+    ctx.closePath();
+    ctx.fill();
+
+    // 9. Brake / rear lights
+    const brakeR = isBraking ? 'rgba(255,0,0,1)' : 'rgba(200,30,30,0.6)';
+    ctx.shadowBlur = isBraking ? 18 : 4;
+    ctx.shadowColor = 'red';
+    ctx.fillStyle = brakeR;
+    ctx.fillRect(-width * 0.37, -h * 0.45, width * 0.09, h * 0.07);
+    ctx.fillRect(width * 0.28, -h * 0.45, width * 0.09, h * 0.07);
+    ctx.shadowBlur = 0;
+
+    // 10. License plate
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(-width * 0.09, -h * 0.34, width * 0.18, h * 0.09, 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#000000';
+    ctx.font = `bold ${Math.round(h * 0.065)}px Inter`;
+    ctx.textAlign = 'center';
+    ctx.fillText((player.name || 'KIEROWCA').toUpperCase(), 0, -h * 0.27);
+
+    ctx.restore();
+
+    // Warning headlight cones (amber for forklift)
+    if (gameState === 'PLAYING') {
+        const lightGradL = ctx.createLinearGradient(x - width * 0.3, y, x - width * 1.5, y - 200);
+        lightGradL.addColorStop(0, 'rgba(255,200,50,0.14)');
+        lightGradL.addColorStop(1, 'rgba(255,200,50,0)');
+        ctx.fillStyle = lightGradL;
+        ctx.beginPath();
+        ctx.moveTo(x - width * 0.32, y - 5);
+        ctx.lineTo(x - width * 1.8, y - 200);
+        ctx.lineTo(x - width * 0.05, y - 220);
+        ctx.closePath();
+        ctx.fill();
+
+        const lightGradR = ctx.createLinearGradient(x + width * 0.3, y, x + width * 1.5, y - 200);
+        lightGradR.addColorStop(0, 'rgba(255,200,50,0.14)');
+        lightGradR.addColorStop(1, 'rgba(255,200,50,0)');
+        ctx.fillStyle = lightGradR;
+        ctx.beginPath();
+        ctx.moveTo(x + width * 0.32, y - 5);
+        ctx.lineTo(x + width * 1.8, y - 200);
+        ctx.lineTo(x + width * 0.05, y - 220);
         ctx.closePath();
         ctx.fill();
     }
@@ -2430,6 +2680,27 @@ function drawParticle(ctx, screen, data) {
 // ZAPISYWANIE I OBSŁUGA REKORDÓW (Leaderboard LocalStorage)
 // ==========================================================================
 function loadLeaderboard() {
+    // 1. Spróbuj pobrać z API serwera
+    fetch('/api/scores')
+        .then(response => {
+            if (!response.ok) throw new Error("HTTP error " + response.status);
+            return response.json();
+        })
+        .then(scores => {
+            if (Array.isArray(scores)) {
+                displayLeaderboard(scores);
+                // Zapisz też lokalnie dla backupu
+                localStorage.setItem('tennet_scores', JSON.stringify(scores));
+            }
+        })
+        .catch(err => {
+            console.warn("Could not load scores from API, falling back to localStorage:", err);
+            // Fallback: localStorage
+            loadLeaderboardLocal();
+        });
+}
+
+function loadLeaderboardLocal() {
     let scores;
     try {
         scores = JSON.parse(localStorage.getItem('tennet_scores'));
@@ -2438,11 +2709,10 @@ function loadLeaderboard() {
     }
     
     if (!scores || !Array.isArray(scores)) {
-        // Domyślne wartości
         scores = [
-            { name: "Kierowca A", score: 1200 },
-            { name: "Kierowca B", score: 800 },
-            { name: "Kierowca C", score: 400 }
+            { name: "KIEROWCA A", score: 1200 },
+            { name: "KIEROWCA B", score: 800 },
+            { name: "KIEROWCA C", score: 400 }
         ];
         try {
             localStorage.setItem('tennet_scores', JSON.stringify(scores));
@@ -2450,17 +2720,17 @@ function loadLeaderboard() {
             console.error("Failed to write default scores to localStorage:", e);
         }
     }
-    
-    // Sortowanie rekordów
+    displayLeaderboard(scores);
+}
+
+function displayLeaderboard(scores) {
     scores.sort((a, b) => b.score - a.score);
-    
-    // Wypełnianie listy w menu startowym
     const listEl = document.getElementById('leaderboard-list');
     if (listEl) {
         listEl.innerHTML = '';
         scores.slice(0, 3).forEach((item, index) => {
             const li = document.createElement('li');
-            li.innerHTML = `<span class="rank">${index + 1}.</span> <span class="name">${item.name}</span> <span class="score">${item.score}m</span>`;
+            li.innerHTML = `<span class="rank">${index + 1}.</span> <span class="name">${item.name.toUpperCase()}</span> <span class="score">${item.score}m</span>`;
             listEl.appendChild(li);
         });
     }
@@ -2476,16 +2746,12 @@ function checkIsHighScore(score) {
     if (!Array.isArray(scores)) scores = [];
     if (scores.length < 5) return true;
     
-    // Sprawdzamy czy wynik jest lepszy od najniższego z listy
     scores.sort((a, b) => b.score - a.score);
     return score > scores[scores.length - 1].score;
 }
 
-function saveHighScore() {
-    const nameInput = document.getElementById('player-name-input');
-    const name = nameInput ? nameInput.value.trim() : "Kierowca";
-    const score = Math.floor(distanceTraveled);
-    
+function saveHighScore(name, score) {
+    // 1. Zapisz lokalnie (jako backup)
     let scores = [];
     try {
         scores = JSON.parse(localStorage.getItem('tennet_scores')) || [];
@@ -2494,21 +2760,35 @@ function saveHighScore() {
     }
     if (!Array.isArray(scores)) scores = [];
     scores.push({ name: name, score: score });
-    
-    // Zachowujemy tylko top 5
     scores.sort((a, b) => b.score - a.score);
-    scores = scores.slice(0, 5);
+    scores = scores.slice(0, 10); // Zachowaj top 10 lokalnie
     
     try {
         localStorage.setItem('tennet_scores', JSON.stringify(scores));
     } catch (e) {
         console.error("Failed to save high scores to localStorage:", e);
     }
-    
-    // Ukrywamy formularz i ładujemy ponownie tablicę
-    const container = document.getElementById('high-score-input-container');
-    if (container) container.classList.add('hidden');
-    loadLeaderboard();
+
+    // 2. Wyślij do API serwera (zapis dla wszystkich)
+    fetch('/api/scores', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: name, score: score })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log("Score saved to server:", data);
+        loadLeaderboard();
+    })
+    .catch(err => {
+        console.error("Failed to save score to server API:", err);
+        loadLeaderboard(); // Odśwież z lokalnego backupu
+    });
 }
 
 // Helper to blend two hex colors with a weight (0 to 1)

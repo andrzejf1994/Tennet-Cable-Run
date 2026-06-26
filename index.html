@@ -51,6 +51,25 @@
             <h1 class="game-title">TENNET<br><span class="title-sub">CABLE RUN</span></h1>
             <p class="game-tagline">Omiń toczące się bębny z kablami wysokiego napięcia!</p>
             
+            <div class="name-input-group">
+                <label for="player-name-start">WPISZ SWOJE IMIĘ (MAX 8 ZNAKÓW):</label>
+                <input type="text" id="player-name-start" maxlength="8" placeholder="KIEROWCA" value="KIEROWCA">
+            </div>
+
+            <div class="vehicle-picker">
+                <label class="vehicle-picker-label">WYBIERZ POJAZD:</label>
+                <div class="vehicle-picker-btns">
+                    <button id="vehicle-btn-car" class="vehicle-btn active" data-vehicle="car">
+                        <span class="vehicle-icon">🚗</span>
+                        <span class="vehicle-name">SAMOCHÓD</span>
+                    </button>
+                    <button id="vehicle-btn-forklift" class="vehicle-btn" data-vehicle="forklift">
+                        <span class="vehicle-icon">🚜</span>
+                        <span class="vehicle-name">WÓZEK WIDŁOWY</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="menu-actions">
                 <button id="btn-start" class="btn primary-btn">URUCHOM SILNIK (START)</button>
                 <button id="btn-settings-open" class="btn secondary-btn">USTAWIENIA</button>
@@ -117,14 +136,6 @@
                     <div id="new-record-banner" class="new-record hidden">NOWY REKORD!</div>
                 </div>
 
-                <div class="input-high-score hidden" id="high-score-input-container">
-                    <p>Zapisz swój wynik na liście rekordów:</p>
-                    <div class="input-row">
-                        <input type="text" id="player-name-input" maxlength="10" placeholder="Nazwa gracza" value="Kierowca">
-                        <button id="btn-submit-score" class="btn primary-btn small-btn">ZAPISZ</button>
-                    </div>
-                </div>
-
                 <div class="menu-actions vertical">
                     <button id="btn-restart" class="btn primary-btn">JESZCZE RAZ</button>
                     <button id="btn-menu" class="btn secondary-btn">MENU GŁÓWNE</button>
@@ -147,8 +158,21 @@
                         <input type="range" id="vol-sfx" min="0" max="100" value="70">
                     </div>
                     <div class="setting-row">
-                        <label for="car-color">Kolor Toyoty Camry</label>
+                        <label for="car-color">Kolor samochodu</label>
                         <input type="color" id="car-color" value="#C0C0C0" style="width: 100%; height: 40px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.15); background: transparent; cursor: pointer;">
+                    </div>
+                    <div class="setting-row">
+                        <label>Pojazd</label>
+                        <div class="vehicle-picker-btns modal-vehicle-btns">
+                            <button id="vehicle-btn-car-modal" class="vehicle-btn active" data-vehicle="car">
+                                <span class="vehicle-icon">🚗</span>
+                                <span class="vehicle-name">SAMOCHÓD</span>
+                            </button>
+                            <button id="vehicle-btn-forklift-modal" class="vehicle-btn" data-vehicle="forklift">
+                                <span class="vehicle-icon">🚜</span>
+                                <span class="vehicle-name">WÓZEK WIDŁOWY</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="setting-row">
                         <label for="gfx-quality">Grafika (Cząsteczki)</label>

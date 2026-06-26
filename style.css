@@ -462,42 +462,123 @@ html, body {
     animation: scalePulse 1.5s infinite alternate;
 }
 
-/* Wprowadzanie Imienia Rekordu */
-.input-high-score {
-    margin-bottom: 24px;
-    text-align: left;
-}
-
-.input-high-score p {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-    text-align: center;
-}
-
-.input-row {
+/* Wprowadzanie Imienia Przed Startem */
+.name-input-group {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    width: 100%;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-#player-name-input {
-    flex-grow: 1;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+.name-input-group label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+}
+
+#player-name-start {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     padding: 12px 16px;
     color: var(--white);
-    font-family: var(--font-body);
-    font-size: 14px;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 2px;
     outline: none;
-    transition: all 0.2s;
+    text-transform: uppercase;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#player-name-input:focus {
+#player-name-start:focus {
     border-color: var(--tennet-orange);
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 10px rgba(255, 95, 0, 0.25);
+    background: rgba(255, 95, 0, 0.08);
+    box-shadow: 0 0 15px rgba(255, 95, 0, 0.35);
 }
+
+/* Vehicle Picker */
+.vehicle-picker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    width: 100%;
+    max-width: 380px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.vehicle-picker-label {
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+}
+
+.vehicle-picker-btns {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+.modal-vehicle-btns {
+    margin-top: 4px;
+}
+
+.vehicle-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px;
+    border-radius: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: var(--font-heading);
+    outline: none;
+}
+
+.vehicle-btn:hover {
+    border-color: rgba(255, 95, 0, 0.4);
+    background: rgba(255, 95, 0, 0.06);
+    color: var(--white);
+    transform: translateY(-2px);
+}
+
+.vehicle-btn.active {
+    border-color: var(--tennet-orange);
+    background: rgba(255, 95, 0, 0.12);
+    color: var(--white);
+    box-shadow: 0 0 16px rgba(255, 95, 0, 0.35), inset 0 0 12px rgba(255, 95, 0, 0.06);
+}
+
+.vehicle-icon {
+    font-size: 30px;
+    line-height: 1;
+}
+
+.vehicle-name {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
 
 /* ==========================================================================
    SETTINGS MODAL & INTERACTIVE SLIDERS
