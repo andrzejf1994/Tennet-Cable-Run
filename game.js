@@ -434,7 +434,7 @@ function createRoad() {
         
         // Projektowanie wzniesień (górki i doliny)
         if (i > 150 && i < 300) hill = Math.sin((i - 150) / 150 * Math.PI) * 1200;
-        if (i > 600 && i < 800) hill = Math.sin((i - 600) / 200 * Math.PI) * -1800;
+        if (i > 600 && i < 800) hill = Math.sin((i - 600) / 200 * Math.PI) * -900;
         
         curveAccum += curve;
         hillAccum += hill;
@@ -1546,7 +1546,8 @@ function renderScene() {
         renderList.push({
             segment: seg,
             p1: p1Screen,
-            p2: p2Screen
+            p2: p2Screen,
+            z: p1World.z
         });
     }
     
@@ -1557,12 +1558,18 @@ function renderScene() {
         const p2 = item.p2;
         const color = item.segment.color;
         
-        // B. Krawężnik (Rumble strips)
+        // Oblicz współczynnik mgły (dla płynnego znikana na horyzoncie)
+        const transZ = item.z - cameraZ;
+        const maxDrawDist = CONFIG.drawDistance * CONFIG.segmentLength;
+        const distancePercent = Math.max(0, Math.min(1, transZ / maxDrawDist));
+        const fogFactor = Math.pow(distancePercent, 2.5); // Wykładnicza mgła dla naturalnego przejścia
+        
+        // B. Krawężnik (Rumble strips) z mgłą horyzontu
         const rumbleW1 = p1.w * 0.12;
         const rumbleW2 = p2.w * 0.12;
-        const rumbleColor = (item.segment.index % 6 < 3) ? COLORS.RUMBLE_WHITE : COLORS.RUMBLE_RED;
+        const rumbleBaseColor = (item.segment.index % 6 < 3) ? COLORS.RUMBLE_WHITE : COLORS.RUMBLE_RED;
+        ctx.fillStyle = blendColors(rumbleBaseColor, currentColors.SKY_BOT, fogFactor);
         
-        ctx.fillStyle = rumbleColor;
         drawPolygon(ctx, 
             p1.x - p1.w - rumbleW1, p1.y, 
             p1.x - p1.w, p1.y, 
@@ -1576,8 +1583,9 @@ function renderScene() {
             p2.x + p2.w, p2.y
         );
         
-        // C. Nawierzchnia asfaltowa z dobowymi kolorami
-        ctx.fillStyle = (color === COLORS.ROAD_LIGHT) ? currentColors.ROAD_LIGHT : currentColors.ROAD_DARK;
+        // C. Nawierzchnia asfaltowa z dobowymi kolorami i mgłą horyzontu
+        const roadBaseColor = (color === COLORS.ROAD_LIGHT) ? currentColors.ROAD_LIGHT : currentColors.ROAD_DARK;
+        ctx.fillStyle = blendColors(roadBaseColor, currentColors.SKY_BOT, fogFactor);
         drawPolygon(ctx, 
             p1.x - p1.w, p1.y, 
             p1.x + p1.w, p1.y, 
@@ -1585,9 +1593,9 @@ function renderScene() {
             p2.x - p2.w, p2.y
         );
         
-        // D. Linie wyznaczające pasy (dashed lines)
+        // D. Linie wyznaczające pasy (dashed lines) z mgłą horyzontu
         if (item.segment.index % 6 < 3) {
-            ctx.fillStyle = COLORS.LANE_LINE;
+            ctx.fillStyle = blendColors(COLORS.LANE_LINE, currentColors.SKY_BOT, fogFactor);
             const laneDiv = CONFIG.lanes;
             
             // Rysujemy linie przerywane między pasami
