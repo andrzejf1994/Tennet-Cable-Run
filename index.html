@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TenneT Cable Run - Unikaj Bębnów!</title>
+    <!-- Google Fonts for retro arcade and clean UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- The Game Canvas -->
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Dynamic Game HUD -->
+        <div id="hud" class="hud-layer hidden">
+            <div class="hud-item score-container odometer-hud">
+                <span class="hud-label">LICZNIK (ODOMETER)</span>
+                <div class="odometer-wrapper">
+                    <div class="odometer-main" id="odometer-current">000000</div>
+                    <div class="odometer-unit">m</div>
+                </div>
+                <div class="odometer-hi-wrapper">
+                    <span class="odometer-hi-label">REKORD:</span>
+                    <span class="odometer-hi-val" id="odometer-hi">000000</span>
+                    <span class="odometer-unit-small">m</span>
+                </div>
+            </div>
+            <div class="hud-item speed-container">
+                <span class="hud-label">PRĘDKOŚĆ</span>
+                <span id="speed-val" class="hud-value">0 km/h</span>
+            </div>
+            <div class="hud-item lives-container">
+                <span class="hud-label">USZKODZENIA</span>
+                <div id="shield-bar" class="shield-bar-outer">
+                    <div id="shield-bar-inner"></div>
+                </div>
+            </div>
+            <div class="hud-item wave-container">
+                <span class="hud-label">WAVE</span>
+                <span id="wave-val" class="hud-value">1</span>
+            </div>
+        </div>
+
+        <!-- Start Screen Menu -->
+        <div id="menu-start" class="menu-layer active">
+            <div class="glow-effect"></div>
+            <h1 class="game-title">TENNET<br><span class="title-sub">CABLE RUN</span></h1>
+            <p class="game-tagline">Omiń toczące się bębny z kablami wysokiego napięcia!</p>
+            
+            <div class="menu-actions">
+                <button id="btn-start" class="btn primary-btn">URUCHOM SILNIK (START)</button>
+                <button id="btn-settings-open" class="btn secondary-btn">USTAWIENIA</button>
+            </div>
+
+            <div class="info-panels">
+                <div class="panel controls-panel">
+                    <h3>STEROWANIE</h3>
+                    <div class="control-keys">
+                        <div class="key-row">
+                            <span class="key-cap">▲</span>
+                            <span class="key-cap">W</span>
+                            <span class="key-desc">Przyspieszenie</span>
+                        </div>
+                        <div class="key-row">
+                            <span class="key-cap">◀</span>
+                            <span class="key-cap">A</span>
+                            <span class="key-cap">▶</span>
+                            <span class="key-cap">D</span>
+                            <span class="key-desc">Skręt w lewo / prawo</span>
+                        </div>
+                        <div class="key-row">
+                            <span class="key-cap">▼</span>
+                            <span class="key-cap">S</span>
+                            <span class="key-desc">Hamowanie</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel leaderboard-panel">
+                    <h3>REKORDY</h3>
+                    <ol id="leaderboard-list">
+                        <li><span class="rank">1.</span> <span class="name">Kierowca</span> <span class="score">1000m</span></li>
+                        <li><span class="rank">2.</span> <span class="name">Kierowca</span> <span class="score">750m</span></li>
+                        <li><span class="rank">3.</span> <span class="name">Kierowca</span> <span class="score">500m</span></li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pause Overlay -->
+        <div id="menu-pause" class="menu-layer hidden">
+            <div class="glass-panel">
+                <h2 class="menu-title">GRA WSTRZYMANA</h2>
+                <div class="menu-actions vertical">
+                    <button id="btn-resume" class="btn primary-btn">WZNAWIAJ</button>
+                    <button id="btn-settings-pause" class="btn secondary-btn">USTAWIENIA</button>
+                    <button id="btn-restart-pause" class="btn warning-btn">RESTART</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="menu-gameover" class="menu-layer hidden">
+            <div class="glass-panel gameover-panel">
+                <h2 class="gameover-title">KOLIZJA!</h2>
+                <p class="gameover-desc">Twój samochód uległ zniszczeniu na autostradzie.</p>
+                
+                <div class="stats-summary">
+                    <div class="stat-box">
+                        <span class="stat-label">Przejechany Dystans</span>
+                        <span id="final-distance" class="stat-value">0 m</span>
+                    </div>
+                    <div id="new-record-banner" class="new-record hidden">NOWY REKORD!</div>
+                </div>
+
+                <div class="input-high-score hidden" id="high-score-input-container">
+                    <p>Zapisz swój wynik na liście rekordów:</p>
+                    <div class="input-row">
+                        <input type="text" id="player-name-input" maxlength="10" placeholder="Nazwa gracza" value="Kierowca">
+                        <button id="btn-submit-score" class="btn primary-btn small-btn">ZAPISZ</button>
+                    </div>
+                </div>
+
+                <div class="menu-actions vertical">
+                    <button id="btn-restart" class="btn primary-btn">JESZCZE RAZ</button>
+                    <button id="btn-menu" class="btn secondary-btn">MENU GŁÓWNE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal (Shared) -->
+        <div id="settings-modal" class="modal-layer hidden">
+            <div class="modal-content glass-panel">
+                <h2 class="modal-title">USTAWIENIA</h2>
+                
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <label for="vol-music">Muzyka</label>
+                        <input type="range" id="vol-music" min="0" max="100" value="50">
+                    </div>
+                    <div class="setting-row">
+                        <label for="vol-sfx">Dźwięki SFX</label>
+                        <input type="range" id="vol-sfx" min="0" max="100" value="70">
+                    </div>
+                    <div class="setting-row">
+                        <label for="car-color">Kolor Toyoty Camry</label>
+                        <input type="color" id="car-color" value="#C0C0C0" style="width: 100%; height: 40px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.15); background: transparent; cursor: pointer;">
+                    </div>
+                    <div class="setting-row">
+                        <label for="gfx-quality">Grafika (Cząsteczki)</label>
+                        <select id="gfx-quality">
+                            <option value="high">Wysoka (Zalecana)</option>
+                            <option value="medium">Średnia</option>
+                            <option value="low">Niska</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="btn-settings-close" class="btn primary-btn">ZAPISZ I ZAMKNIJ</button>
+            </div>
+        </div>
+
+        <!-- Warning HUD Flash (Red borders when damaged/danger) -->
+        <div id="danger-flash" class="flash-layer hidden"></div>
+
+        <!-- Shoulder Warning Notification -->
+        <div id="shoulder-warning" class="shoulder-warning-layer hidden">
+            POBOCZE! WRÓĆ NA DROGĘ: <span id="shoulder-countdown">5</span>s
+        </div>
+    </div>
+
+    <!-- Include Game Engine Script -->
+    <script src="game.js"></script>
+</body>
+</html>
