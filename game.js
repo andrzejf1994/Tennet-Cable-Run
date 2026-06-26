@@ -1682,7 +1682,13 @@ function renderScene() {
     const cameraY = playerY + CONFIG.cameraHeight;
     const cameraX = player.x * CONFIG.roadWidth * 0.4 + playerSegment.world.p1.x;
     
-    // 3. Rysowanie drogi (od tyłu do przodu)
+    // 3. Rysowanie drogi (od tyłu do przodu) - przycinamy do obszaru poniżej horyzontu
+    const horizonY = height * 0.45;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, horizonY, width, height - horizonY);
+    ctx.clip();
+    
     const startSegmentIndex = Math.floor(cameraZ / CONFIG.segmentLength);
     const endSegmentIndex = startSegmentIndex + CONFIG.drawDistance;
     
@@ -1901,12 +1907,15 @@ function renderScene() {
     const playerBounceY = Math.sin(player.z * 0.05) * (player.speed / CONFIG.maxSpeed) * 1.5;
     const playerScreenY = height * 0.88 + playerBounceY;
     
+    // Kończymy przycinanie horyzontu przed rysowaniem pojazdu gracza
+    ctx.restore();
+    
     // Jeśli gracz jest po kolizji, migocze (invincibleTime)
     if (player.invincibleTime <= 0 || Math.floor(player.invincibleTime / 100) % 2 === 0) {
         if (player.vehicleType === 'forklift') {
-            drawForklift(ctx, playerScreenX, playerScreenY, width * 0.22, player.steerAngle, player.isBraking);
+            drawForklift(ctx, playerScreenX, playerScreenY, width * 0.198, player.steerAngle, player.isBraking);
         } else {
-            drawPlayerCar(ctx, playerScreenX, playerScreenY, width * 0.22, player.steerAngle, player.isBraking);
+            drawPlayerCar(ctx, playerScreenX, playerScreenY, width * 0.198, player.steerAngle, player.isBraking);
         }
     }
 }
