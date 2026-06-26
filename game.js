@@ -327,6 +327,40 @@ let distanceTraveled = 0; // Odpowiednik wyniku (w metrach)
 let gameWave = 1;
 let waveTimer = 0;
 
+// Lista polskich miast (poziomy gry)
+const POLISH_CITIES = [
+    'Skawina', 'Kraków', 'Wieliczka', 'Bochnia', 'Brzesko',
+    'Tarnów', 'Dębica', 'Rzeszów', 'Łańcut', 'Przeworsk',
+    'Jarosław', 'Przemyśl', 'Sanok', 'Krosno', 'Jaślo',
+    'Gorlice', 'Nowy Sącz', 'Nowy Targ', 'Zakopane', 'Limanowa',
+    'Wadowice', 'Oświęcim', 'Chłzow', 'Pszczyna', 'Tychy',
+    'Katowice', 'Gliwice', 'Zabrze', 'Bytom', 'Sosnowiec',
+    'Częstochowa', 'Rybnik', 'Bielsko-Biała', 'Cieszyn', 'Skoczow',
+    'Kielce', 'Włoszczowa', 'Kozłów', 'Kielce', 'Ostrowiec',
+    'Radom', 'Lublin', 'Puławy', 'Zamość', 'Chełm',
+    'Warszawa', 'Piaseczno', 'Pruszków', 'Grójec', 'Mszczonów',
+    'Łódź', 'Piotrków', 'Skierniewice', 'Sieradz', 'Wieluń',
+    'Poznań', 'Gniezno', 'Konin', 'Kalisz', 'Ostrów',
+    'Wrocław', 'Legnica', 'Jelenia Góra', 'Wałbrzych', 'Opole',
+    'Gdańsk', 'Gdynia', 'Sopot', 'Tczew', 'Grudziądz',
+    'Toruń', 'Bydgoszcz', 'Inowrocław', 'Znin', 'Piła',
+    'Szczecin', 'Stargard', 'Kołobrzeg', 'Koszalin', 'Słupsk',
+    'Olsztyn', 'Ostróda', 'Giżycko', 'Ełk', 'Sułki',
+    'Białystok', 'Łomża', 'Suwałki', 'Augustow', 'Sejny',
+    'Zielona Góra', 'Nowa Sól', 'Lubuskie', 'Środa', 'Gułbin',
+    'Płock', 'Włocławek', 'Malbork', 'Kwidzyn', 'Starogard',
+    'Nowy Dwor', 'Legionowo', 'Oświęcim', 'Andrychow', 'Sucha',
+    'Zawiercie', 'Olkusz', 'Miechow', 'Proszowice', 'Brzesk'
+];
+
+// Stan tabliczek z nazwami miast (poziomy)
+let citySignState = {
+    nextCityIndex: 1,       // Indeks kolejnego miasta (0 = Skawina, start)
+    signZ: 0,               // Pozycja Z tabliczki na trasie
+    signPassed: false,      // Czy gracz minął tabliczkę
+    pendingSignObj: null    // Referencja do obiektu znaku w roadsideObjects
+};
+
 // Statystyki trudności (dynamicznie skalowane z falami)
 let drumSpawnInterval = 2200; // ms
 let nextDrumSpawnTime = 0;
@@ -465,41 +499,12 @@ function createRoad() {
             color: i % 4 < 2 ? COLORS.ROAD_LIGHT : COLORS.ROAD_DARK
         });
 
-        // Generowanie obiektów na poboczu (znaki miast i standardowe dekoracje)
-        const citySigns = {
-            2: "Skawina", // Start sign
-            100: "Kraków 12 km",
-            200: "Wieliczka 8 km",
-            300: "Bochnia 15 km",
-            400: "Brzesko 10 km",
-            500: "Tarnów 55 km",
-            600: "Dębica 30 km",
-            700: "Rzeszów 95 km",
-            800: "Łańcut 12 km",
-            900: "Przeworsk 18 km",
-            1000: "Jarosław 25 km",
-            1100: "Przemyśl 50 km",
-            1180: "Medyka 5 km"
-        };
-        
-        if (citySigns[i]) {
-            roadsideObjects.push({
-                x: 1350, // Right side of the road
-                z: i * CONFIG.segmentLength,
-                y: 0,
-                type: 'city_sign',
-                cityName: citySigns[i],
-                scale: 1.1
-            });
-        } else if (i % 6 === 0 && i > 5) {
+        // Generowanie dekoracji pobocza (drzewa, budynki, stacje)
+        if (i % 6 === 0 && i > 5) {
             const isLeft = Math.random() > 0.5;
-            // Droga ma 2000 jednostek szerokości (-1000 lewa krawędź, 1000 prawa)
-            // Pobocze zaczyna się powyżej 1400 jednostek
             const worldX = isLeft ? -1500 - Math.random() * 500 : 1500 + Math.random() * 500;
-            
             const types = ['tree', 'building', 'gas_station', 'billboard'];
             const type = types[Math.floor(Math.random() * types.length)];
-            
             roadsideObjects.push({
                 x: worldX,
                 z: i * CONFIG.segmentLength,
@@ -761,6 +766,19 @@ function startGame() {
     timeOfDay = 0;
     shoulderTimer = 0;
     
+    // Reset systemu znaków miast
+    // Przemieszaj miasta (zachowaj Skawina na początku)
+    const shuffled = POLISH_CITIES.slice(1);
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    window._cityOrder = ['Skawina', ...shuffled];
+    
+    citySignState.nextCityIndex = 1; // Pierwsze miasto do osiągnięcia to indeks 1
+    citySignState.signPassed = false;
+    citySignState.pendingSignObj = null;
+    
     drumSpawnInterval = 7000; // Połowę mniej bębnów na start (odstęp 7 sekund)
     maxDrumsInWave = 1;
     baseDrumSpeedZ = 390; // Prędkość 3x większa niż poprzednio (130 * 3 = 390)
@@ -773,10 +791,14 @@ function startGame() {
     gameState = 'PLAYING';
     lastTime = performance.now();
     
-    // Inicjacja muzyki i silnika
+    // Inicjalizacja audio i pierwsza tabliczka
     audio.init();
     audio.startMusic();
+    
+    // Spawn pierwszej tabliczki z nazwą miasta - pojawi się ~800m przed graczem
+    setTimeout(() => spawnNextCitySign(), 100);
 }
+
 
 function pauseGame() {
     if (gameState !== 'PLAYING') return;
@@ -851,20 +873,17 @@ function updatePhysics(dt) {
     // 1. Obsługa czasu i fali trudności
     waveTimer += dt * 1000 * speedFactor;
     timeOfDay += dt * 1000 * speedFactor;
-    if (waveTimer >= CONFIG.waveDuration) {
-        waveTimer = 0;
-        gameWave++;
-        audio.playScoreSound(); // Dźwięk zmiany fali
-        
-        // Zwiększanie trudności
-        drumSpawnInterval = Math.max(900, 7000 - (gameWave * 1000)); // Start z 7s, spada o 1s na falę
-        baseDrumSpeedZ = Math.min(480, 390 + (gameWave * 20));       // Stopniowe zwiększanie i tak już ogromnej prędkości
-        if (gameWave <= 2) maxDrumsInWave = 1;
-        else if (gameWave <= 4) maxDrumsInWave = 2;
-        else maxDrumsInWave = 3;                       // Dwa bębny na raz od 3 fali
-        
-        // Animacja powiadomienia o nowej fali
-        showWaveNotification();
+    
+    // Sprawdzenie czy gracz minął tabliczkę z nazwą miasta (awans na kolejny poziom)
+    if (citySignState.pendingSignObj && !citySignState.signPassed) {
+        const signWorldZ = citySignState.signZ;
+        const playerWorldZ = player.z % (segments.length * CONFIG.segmentLength);
+        const dist = signWorldZ - playerWorldZ;
+        // Gracz minął tablicę (przekroczył jej pozycję Z)
+        if (dist < 0 && dist > -CONFIG.segmentLength * 20) {
+            citySignState.signPassed = true;
+            advanceToNextCity();
+        }
     }
     
     // 2. Sterowanie graczem i fizyka prędkości
@@ -1231,28 +1250,122 @@ function updateShieldUI() {
 
 // Efekt powiadomienia o nowej fali
 function showWaveNotification() {
-    const waveEl = document.createElement('div');
-    waveEl.style.position = 'absolute';
-    waveEl.style.top = '25%';
-    waveEl.style.left = '50%';
-    waveEl.style.transform = 'translate(-50%, -50%)';
-    waveEl.style.fontFamily = 'var(--font-heading)';
-    waveEl.style.fontSize = '38px';
-    waveEl.style.fontWeight = '900';
-    waveEl.style.color = 'var(--tennet-orange)';
-    waveEl.style.textShadow = '0 0 20px rgba(255, 95, 0, 0.8), 0 0 2px white';
-    waveEl.style.zIndex = '15';
-    waveEl.style.letterSpacing = '4px';
-    waveEl.style.textAlign = 'center';
-    waveEl.innerText = `FALA ${gameWave}\nPRĘDKOŚĆ ++`;
-    waveEl.style.animation = 'scalePulse 1.0s ease-out forwards';
-    
-    document.getElementById('game-container').appendChild(waveEl);
-    
-    setTimeout(() => {
-        waveEl.remove();
-    }, 1500);
+    // Wywoływana teraz z advanceToNextCity - zachowana dla kompatybilności
 }
+
+// Awans na kolejny poziom po przejechaniu tabliczki z nazwą miasta
+function advanceToNextCity() {
+    gameWave++;
+    audio.playScoreSound();
+    
+    // Zwiększanie trudności
+    drumSpawnInterval = Math.max(900, 7000 - (gameWave * 800));
+    baseDrumSpeedZ = Math.min(480, 390 + (gameWave * 20));
+    if (gameWave <= 2) maxDrumsInWave = 1;
+    else if (gameWave <= 4) maxDrumsInWave = 2;
+    else maxDrumsInWave = 3;
+    
+    // Pokaż powiadomienie o nowym mieście
+    const cityOrder = window._cityOrder || POLISH_CITIES;
+    const arrivedCity = cityOrder[(citySignState.nextCityIndex - 1) % cityOrder.length];
+    showCityLevelNotification(arrivedCity, gameWave);
+    
+    // Spawn kolejnego znaku
+    citySignState.nextCityIndex++;
+    citySignState.signPassed = false;
+    citySignState.pendingSignObj = null;
+    setTimeout(() => spawnNextCitySign(), 200);
+}
+
+// Umieść tabliczkę z nazwą następnego miasta ~800m przed graczem
+function spawnNextCitySign() {
+    if (gameState !== 'PLAYING') return;
+    
+    const cityOrder = window._cityOrder || POLISH_CITIES;
+    const cityName = cityOrder[citySignState.nextCityIndex % cityOrder.length];
+    
+    // Pozycja Z ~600-900 segmentów przed graczem (w przestrzeni świata)
+    const segmentsAhead = 180 + Math.floor(Math.random() * 60); // ~180-240 segmentów
+    const playerSegIdx = Math.floor(player.z / CONFIG.segmentLength);
+    const signSegIdx = (playerSegIdx + segmentsAhead) % segments.length;
+    const signZ = signSegIdx * CONFIG.segmentLength + Math.floor(player.z / (segments.length * CONFIG.segmentLength)) * (segments.length * CONFIG.segmentLength);
+    
+    const signObj = {
+        x: 1380,           // Po prawej stronie drogi
+        z: signZ,
+        y: 0,
+        type: 'city_sign',
+        cityName: cityName,
+        scale: 1.4,        // Wyraźnie widoczna
+        isLevelSign: true  // Oznaczenie że to tabliczka poziomu
+    };
+    
+    roadsideObjects.push(signObj);
+    // Dodaj lustrzaną tabliczkę po lewej stronie
+    roadsideObjects.push({
+        ...signObj,
+        x: -1380
+    });
+    
+    citySignState.signZ = signZ;
+    citySignState.signPassed = false;
+    citySignState.pendingSignObj = signObj;
+}
+
+// Powiadomienie o przyjeździe do miasta (ekranowe)
+function showCityLevelNotification(cityName, wave) {
+    const el = document.createElement('div');
+    el.style.cssText = `
+        position: absolute;
+        top: 28%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 15;
+        text-align: center;
+        pointer-events: none;
+        animation: cityArrivalFade 3.5s ease-out forwards;
+    `;
+    
+    // Polska tabliczka drogowa (zielona)
+    el.innerHTML = `
+        <div style="
+            background: #0F6938;
+            border: 4px solid white;
+            padding: 10px 32px 14px;
+            border-radius: 4px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), 0 0 0 7px #0F6938, 0 0 0 10px white;
+            display: inline-block;
+            min-width: 260px;
+        ">
+            <div style="
+                font-family: var(--font-heading);
+                font-size: 13px;
+                letter-spacing: 3px;
+                color: rgba(255,255,255,0.7);
+                margin-bottom: 4px;
+            ">POZIOM ${wave}</div>
+            <div style="
+                font-family: 'Inter', sans-serif;
+                font-size: 36px;
+                font-weight: 800;
+                color: #FFFFFF;
+                letter-spacing: 1px;
+                text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            ">${cityName}</div>
+            <div style="
+                font-family: var(--font-heading);
+                font-size: 11px;
+                letter-spacing: 2px;
+                color: rgba(255,255,255,0.6);
+                margin-top: 4px;
+            ">PRĘDKOŚĆ ++</div>
+        </div>
+    `;
+    
+    document.getElementById('game-container').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+}
+
 
 // Potrząsanie ekranem (Screen Shake)
 function triggerScreenShake() {
@@ -2850,24 +2963,30 @@ function drawRoadsideObject(ctx, screen, data) {
     ctx.save();
     
     if (data.type === 'city_sign') {
-        const h = w * 0.95;
-        const boardH = h * 0.45;
-        const boardW = w * 1.5;
-        const poleW = w * 0.08;
+        const isLevel = data.isLevelSign;
+        const h = w * (isLevel ? 1.15 : 0.95);
+        const boardH = h * (isLevel ? 0.52 : 0.45);
+        const boardW = w * (isLevel ? 1.8 : 1.5);
+        const poleW = w * 0.07;
         
-        // Wspornik (słupek metalowy)
-        ctx.fillStyle = '#6E7A8A';
-        ctx.fillRect(x - poleW / 2, y - h, poleW, h);
+        // Słupki (dwa dla znaku poziomu, jeden dla kierunkowego)
+        ctx.fillStyle = '#8A9BAD';
+        if (isLevel) {
+            ctx.fillRect(x - boardW * 0.35, y - h, poleW, h);
+            ctx.fillRect(x + boardW * 0.28, y - h, poleW, h);
+        } else {
+            ctx.fillRect(x - poleW / 2, y - h, poleW, h);
+        }
         
-        // Tylna metalowa rama ochronna (delikatny ciemny obrys)
-        ctx.fillStyle = '#1C2E20';
-        ctx.fillRect(x - boardW / 2 - 2 * scale, y - h - 2 * scale, boardW + 4 * scale, boardH + 4 * scale);
+        // Ciemna rama
+        ctx.fillStyle = '#0A3D22';
+        ctx.fillRect(x - boardW / 2 - 3 * scale, y - h - 3 * scale, boardW + 6 * scale, boardH + 6 * scale);
         
-        // Główna zielona tablica (polski znak drogowy)
-        ctx.fillStyle = '#0F6938'; // Polski zielony drogowy
+        // Główna zielona tablica
+        ctx.fillStyle = '#0F6938';
         ctx.fillRect(x - boardW / 2, y - h, boardW, boardH);
         
-        // Biała ramka wokół tablicy
+        // Biała ramka wewnętrzna (podwójna dla znaku poziomu)
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = Math.max(1, 2 * scale);
         ctx.strokeRect(x - boardW / 2 + 3 * scale, y - h + 3 * scale, boardW - 6 * scale, boardH - 6 * scale);
