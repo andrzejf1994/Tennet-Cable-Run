@@ -29,7 +29,7 @@ const CONFIG = {
     lanes: 3,                // Liczba pasów
     cameraHeight: 1000,      // Wysokość kamery nad drogą
     cameraDepth: 0.8,        // Zoom kamery (ogniskowa)
-    maxSpeed: 2500,           // Maksymalna prędkość gracza (km/h, praktycznie bez limitu)
+    maxSpeed: 300,           // Maksymalna prędkość gracza (km/h, limit 300)
     accel: 120,              // Przyspieszenie (km/h na sekundy)
     breaking: 250,           // Siła hamowania
     decel: 40,               // Opór powietrza (naturalne zwalnianie)
@@ -747,14 +747,14 @@ function startGame() {
     player.x = 0;
     player.z = 0;
     player.y = 0;
-    player.speed = 80; // Prędkość początkowa
+    player.speed = 90; // Prędkość początkowa (90 km/h)
     player.targetX = 0;
     player.shield = CONFIG.shieldMax;
     player.invincibleTime = 0;
     
     truck.x = 0;
     truck.z = CONFIG.truckBaseZ;
-    truck.speed = 80;
+    truck.speed = 90; // Prędkość początkowa ciężarówki
     truck.targetX = 0;
     truck.laneChangeTimer = 0;
     
@@ -888,7 +888,7 @@ function updatePhysics(dt) {
     
     // 2. Sterowanie graczem i fizyka prędkości
     let isMovingX = false;
-    let targetSpeed = 160; // Domyślna prędkość rejsowa
+    let targetSpeed = 90; // Domyślna prędkość rejsowa (90 km/h)
     
     // Sterowanie klawiaturą
     if (keys['ArrowUp'] || keys['w'] || keys['W']) {
@@ -973,6 +973,9 @@ function updatePhysics(dt) {
         player.speed -= decelRate * dt;
     }
     
+    // Zapewnienie stałego limitu prędkości 300 km/h
+    player.speed = Math.max(0, Math.min(CONFIG.maxSpeed, player.speed));
+    
     // Ruch do przodu (zwiększanie odległości)
     player.z += (player.speed * 10 / 36) * dt; // Zamiana km/h na jednostki/s (skala gry)
     distanceTraveled = player.z / 15; // Przelicznik na metry do wyświetlenia
@@ -1027,7 +1030,7 @@ function updatePhysics(dt) {
     // Ruch ciężarówki w osi X do zadanego pasa
     if (Math.abs(truck.targetX - truck.x) > 0.01) {
         const dx = truck.targetX - truck.x;
-        truck.x += Math.sign(dx) * 0.9 * dt; // Płynne przemieszczenie
+        truck.x += Math.sign(dx) * 0.9 * dt * speedFactor; // Płynne przemieszczenie z uwzględnieniem prędkości gry
     } else {
         truck.x = truck.targetX;
     }
