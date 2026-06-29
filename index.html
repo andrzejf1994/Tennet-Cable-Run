@@ -43,6 +43,9 @@
                 <span class="hud-label">WAVE</span>
                 <span id="wave-val" class="hud-value">1</span>
             </div>
+            <button id="btn-pause-touch" class="hud-item hud-btn">
+                <span>⏸</span>
+            </button>
         </div>
 
         <!-- Start Screen Menu -->
@@ -194,6 +197,18 @@
         <!-- Shoulder Warning Notification -->
         <div id="shoulder-warning" class="shoulder-warning-layer hidden">
             POBOCZE! WRÓĆ NA DROGĘ: <span id="shoulder-countdown">5</span>s
+        </div>
+
+        <!-- Mobile Touch Controls -->
+        <div id="mobile-controls" class="mobile-controls-layer hidden">
+            <div class="control-side left-side">
+                <button id="btn-touch-left" class="touch-btn">◀</button>
+                <button id="btn-touch-right" class="touch-btn">▶</button>
+            </div>
+            <div class="control-side right-side">
+                <button id="btn-touch-up" class="touch-btn">▲</button>
+                <button id="btn-touch-down" class="touch-btn">▼</button>
+            </div>
         </div>
     </div>
 

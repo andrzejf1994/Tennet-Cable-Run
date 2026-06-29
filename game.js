@@ -607,6 +607,69 @@ function setupInputListeners() {
             inputMode = 'mouse';
         }
     }, { passive: true });
+
+    // Wykrywanie urządzenia dotykowego
+    window._isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    
+    // Uaktywnij natychmiast lub przy pierwszym dotknięciu
+    window.addEventListener('touchstart', function detectTouch() {
+        window._isTouchDevice = true;
+        if (gameState === 'PLAYING') {
+            const mc = document.getElementById('mobile-controls');
+            if (mc) mc.classList.remove('hidden');
+        }
+        window.removeEventListener('touchstart', detectTouch);
+    }, { passive: true });
+
+    // Powiązanie przycisków dotykowych z klawiszami fizyki
+    const bindTouchKey = (id, keyName) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            inputMode = 'keyboard';
+            keys[keyName] = true;
+        });
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            keys[keyName] = false;
+        });
+        btn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            keys[keyName] = false;
+        });
+    };
+
+    bindTouchKey('btn-touch-left', 'ArrowLeft');
+    bindTouchKey('btn-touch-right', 'ArrowRight');
+    bindTouchKey('btn-touch-up', 'ArrowUp');
+    bindTouchKey('btn-touch-down', 'ArrowDown');
+
+    // Dotykowy przycisk Pauzy
+    const btnPauseTouch = document.getElementById('btn-pause-touch');
+    if (btnPauseTouch) {
+        btnPauseTouch.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (gameState === 'PLAYING') {
+                pauseGame();
+            } else if (gameState === 'PAUSED') {
+                resumeGame();
+            }
+        });
+        btnPauseTouch.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (gameState === 'PLAYING') {
+                pauseGame();
+            } else if (gameState === 'PAUSED') {
+                resumeGame();
+            }
+        });
+    }
 }
 
 // Obsługa interfejsów HTML (przyciski, suwaki)
@@ -787,6 +850,10 @@ function startGame() {
     hideMenu('menu-pause');
     hideMenu('menu-gameover');
     document.getElementById('hud').classList.remove('hidden');
+    if (window._isTouchDevice) {
+        const mc = document.getElementById('mobile-controls');
+        if (mc) mc.classList.remove('hidden');
+    }
     
     gameState = 'PLAYING';
     lastTime = performance.now();
@@ -807,6 +874,8 @@ function pauseGame() {
     showMenu('menu-pause');
     const warningEl = document.getElementById('shoulder-warning');
     if (warningEl) warningEl.classList.add('hidden');
+    const mc = document.getElementById('mobile-controls');
+    if (mc) mc.classList.add('hidden');
 }
 
 function resumeGame() {
@@ -814,6 +883,10 @@ function resumeGame() {
     hideMenu('menu-pause');
     gameState = 'PLAYING';
     lastTime = performance.now();
+    if (window._isTouchDevice) {
+        const mc = document.getElementById('mobile-controls');
+        if (mc) mc.classList.remove('hidden');
+    }
 }
 
 function gameOver() {
@@ -823,6 +896,8 @@ function gameOver() {
     audio.playCrash();
     
     document.getElementById('hud').classList.add('hidden');
+    const mc = document.getElementById('mobile-controls');
+    if (mc) mc.classList.add('hidden');
     
     const warningEl = document.getElementById('shoulder-warning');
     if (warningEl) warningEl.classList.add('hidden');
