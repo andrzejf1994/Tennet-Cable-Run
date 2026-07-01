@@ -361,6 +361,9 @@ let citySignState = {
     pendingSignObj: null    // Referencja do obiektu znaku w roadsideObjects
 };
 
+// Dynamiczna głębokość kamery (efekt tunelu / FOV przy dużej prędkości)
+let activeCameraDepth = 0.8;
+
 // Statystyki trudności (dynamicznie skalowane z falami)
 let drumSpawnInterval = 2200; // ms
 let nextDrumSpawnTime = 0;
@@ -475,12 +478,11 @@ function createRoad() {
         let curve = 0;
         let hill = 0;
         
-        // Projektowanie zakrętów
-        if (i > 100 && i < 200) curve = 1.5;      // Łagodny w prawo
-        else if (i > 250 && i < 400) curve = -2.5; // Ostry w lewo
-        else if (i > 500 && i < 650) curve = 2.0;  // Średni w prawo
-        else if (i > 750 && i < 900) curve = -1.5; // Łagodny w lewo
-        else if (i > 950 && i < 1100) curve = 1.0; // Łagodny w prawo (powrót do centrum)
+        // Projektowanie zakrętów: Wiele gęstych, ciągłych zakrętów sumujących się do zera na pętli 1200 segmentów
+        // Używamy harmonicznych sinusoid, co gwarantuje płynne zakręty bez nagłych skoków na horyzoncie/przy wrapowaniu
+        curve = Math.sin(i * 2 * Math.PI / 1200 * 6) * 3.5 + 
+                Math.sin(i * 2 * Math.PI / 1200 * 12) * 1.5 + 
+                Math.cos(i * 2 * Math.PI / 1200 * 4) * 0.8;
         
         // Projektowanie wzniesień (górki i doliny)
         if (i > 150 && i < 300) hill = Math.sin((i - 150) / 150 * Math.PI) * 1200;
@@ -530,8 +532,8 @@ function projectPoint(point, cameraX, cameraY, cameraZ, canvasWidth, canvasHeigh
     
     if (transZ <= 0) return null; // Za kamerą
     
-    // Rzutowanie Z: 200 to bazowy dystans Z, na którym scale = cameraDepth (0.8)
-    const scale = (CONFIG.cameraDepth * 200) / transZ;
+    // Rzutowanie Z: 200 to bazowy dystans Z, na którym scale = activeCameraDepth
+    const scale = (activeCameraDepth * 200) / transZ;
     
     // Normalizacja X względem połowy szerokości drogi (1000)
     const normX = transX / (CONFIG.roadWidth / 2);
@@ -942,8 +944,8 @@ function gameLoop(timestamp) {
 
 // Aktualizacja fizyki gry
 function updatePhysics(dt) {
-    // Współczynnik prędkości gry (zmiana prędkości auta zmienia prędkość całej gry)
-    const speedFactor = player.speed / 120; // 120 km/h to baza (1.0x prędkości gry)
+    // Współczynnik prędkości gry (300 km/h odczuwalne jako 1000 km/h dzięki mnożnikowi x3.33)
+    const speedFactor = (player.speed * 3.33) / 120; // 120 km/h to baza (1.0x prędkości gry)
 
     // 1. Obsługa czasu i fali trudności
     waveTimer += dt * 1000 * speedFactor;
@@ -1051,8 +1053,8 @@ function updatePhysics(dt) {
     // Zapewnienie stałego limitu prędkości 300 km/h
     player.speed = Math.max(0, Math.min(CONFIG.maxSpeed, player.speed));
     
-    // Ruch do przodu (zwiększanie odległości)
-    player.z += (player.speed * 10 / 36) * dt; // Zamiana km/h na jednostki/s (skala gry)
+    // Ruch do przodu (zwiększanie odległości pomnożone x3.33)
+    player.z += (player.speed * 10 / 36) * dt * 3.33; // Zamiana km/h na jednostki/s (skala gry)
     distanceTraveled = player.z / 15; // Przelicznik na metry do wyświetlenia
     
     // Siła odśrodkowa na zakrętach
@@ -1080,7 +1082,7 @@ function updatePhysics(dt) {
     if (actualDist < idealTruckDist - 100) desiredTruckSpeed = player.speed * 1.15;
     
     truck.speed += (desiredTruckSpeed - truck.speed) * 2 * dt;
-    truck.z += (truck.speed * 10 / 36) * dt;
+    truck.z += (truck.speed * 10 / 36) * dt * 3.33; // Prędkość Z ciężarówki również zsynchronizowana x3.33
     
     // Zmiany pasów przez ciężarówkę
     truck.laneChangeTimer -= dt * 1000 * speedFactor;
@@ -1135,6 +1137,9 @@ function updatePhysics(dt) {
     // 5. Fizyka bębnów
     for (let i = drums.length - 1; i >= 0; i--) {
         const drum = drums[i];
+        
+        // Progresywne przyspieszanie toczącego się bębna
+        drum.speedZ += dt * 35 * speedFactor;
         
         // Ruch bębnów w osi Z (toczą się w stronę gracza - prędkość wsteczna)
         const drumSpeedUnits = (drum.speedZ * 10 / 36);
@@ -1355,18 +1360,23 @@ function advanceToNextCity() {
     setTimeout(() => spawnNextCitySign(), 200);
 }
 
-// Umieść tabliczkę z nazwą następnego miasta ~800m przed graczem
+// Umieść tabliczkę z nazwą następnego miasta na dystansie odpowiadającym 30-60s jazdy
 function spawnNextCitySign() {
     if (gameState !== 'PLAYING') return;
     
     const cityOrder = window._cityOrder || POLISH_CITIES;
     const cityName = cityOrder[citySignState.nextCityIndex % cityOrder.length];
     
-    // Pozycja Z ~600-900 segmentów przed graczem (w przestrzeni świata)
-    const segmentsAhead = 180 + Math.floor(Math.random() * 60); // ~180-240 segmentów
-    const playerSegIdx = Math.floor(player.z / CONFIG.segmentLength);
-    const signSegIdx = (playerSegIdx + segmentsAhead) % segments.length;
-    const signZ = signSegIdx * CONFIG.segmentLength + Math.floor(player.z / (segments.length * CONFIG.segmentLength)) * (segments.length * CONFIG.segmentLength);
+    // Czas trwania 1 poziomu to 30 - 60 sekund
+    const levelDuration = 30 + Math.random() * 30;
+    
+    // Obliczamy dystans Z na podstawie aktualnej prędkości gracza (uwzględniając mnożnik odczuwania prędkości 3.33)
+    // Zabezpieczenie na minimalną prędkość 90 km/h, aby znak nie zespawnował się za blisko jeśli stoimy
+    const referenceSpeed = Math.max(90, player.speed);
+    const speedInUnitsPerSec = (referenceSpeed * 10 / 36) * 3.33;
+    const signDistanceZ = speedInUnitsPerSec * levelDuration;
+    
+    const signZ = player.z + signDistanceZ;
     
     const signObj = {
         x: 1380,           // Po prawej stronie drogi
@@ -1661,6 +1671,9 @@ function getCycleColors(timeMs) {
 function renderScene() {
     const width = canvas.width / (window.devicePixelRatio || 1);
     const height = canvas.height / (window.devicePixelRatio || 1);
+    
+    // Dynamiczna głębokość kamery (efekt tunelu / FOV przy dużej prędkości)
+    activeCameraDepth = CONFIG.cameraDepth - (player.speed / CONFIG.maxSpeed) * 0.35;
     
     // Wyczyszczenie ekranu
     ctx.clearRect(0, 0, width, height);
@@ -1980,7 +1993,7 @@ function renderScene() {
     
     // 5. Rysowanie gracza (na samym przodzie)
     // Gracz jest zawsze rysowany w dolnej części ekranu
-    const playerScreenX = width / 2 + (player.x - (player.x * 0.1)) * (width * 0.15) * (CONFIG.cameraDepth / 0.8); 
+    const playerScreenX = width / 2 + (player.x - (player.x * 0.1)) * (width * 0.15) * (activeCameraDepth / 0.8); 
     // Dodajemy lekkie podskakiwanie przy dużej prędkości
     const playerBounceY = Math.sin(player.z * 0.05) * (player.speed / CONFIG.maxSpeed) * 1.5;
     const playerScreenY = height * 0.88 + playerBounceY;
