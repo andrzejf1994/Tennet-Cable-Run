@@ -478,11 +478,10 @@ function createRoad() {
         let curve = 0;
         let hill = 0;
         
-        // Projektowanie zakrętów: Wiele gęstych, ciągłych zakrętów sumujących się do zera na pętli 1200 segmentów
-        // Używamy harmonicznych sinusoid, co gwarantuje płynne zakręty bez nagłych skoków na horyzoncie/przy wrapowaniu
-        curve = Math.sin(i * 2 * Math.PI / 1200 * 6) * 3.5 + 
-                Math.sin(i * 2 * Math.PI / 1200 * 12) * 1.5 + 
-                Math.cos(i * 2 * Math.PI / 1200 * 4) * 0.8;
+        // Projektowanie zakrętów: Płynne, ciągłe zakręty o bezpiecznej amplitudzie (max ~1.4), aby zakręty były odczuwalne,
+        // ale sterowanie działało lekko i responsywnie w obie strony, bez blokowania pojazdu na poboczu.
+        curve = Math.sin(i * 2 * Math.PI / 1200 * 6) * 1.1 + 
+                Math.cos(i * 2 * Math.PI / 1200 * 4) * 0.3;
         
         // Projektowanie wzniesień (górki i doliny)
         if (i > 150 && i < 300) hill = Math.sin((i - 150) / 150 * Math.PI) * 1200;
@@ -584,13 +583,27 @@ function setupInputListeners() {
     });
 
     // Sterowanie myszką/dotykiem na Canvas
+    let lastMouseX = null;
+    let lastMouseY = null;
     canvas.addEventListener('mousemove', (e) => {
+        if (lastMouseX !== null && lastMouseY !== null) {
+            const movementX = Math.abs(e.clientX - lastMouseX);
+            const movementY = Math.abs(e.clientY - lastMouseY);
+            // Przełącz na sterowanie myszą tylko przy realnym ruchu myszy o więcej niż 3 piksele
+            if (movementX > 3 || movementY > 3) {
+                inputMode = 'mouse';
+            }
+        } else {
+            // Pierwszy ruch myszy - zapamiętaj pozycję bez przełączania trybu
+        }
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        
         const rect = canvas.getBoundingClientRect();
         const clientX = (e.clientX - rect.left) / (rect.right - rect.left);
         // Mapowanie na przedział -0.95 do 0.95 (szerokość drogi)
         player.targetX = (clientX * 1.9) - 0.95;
         mouseX = e.clientX;
-        inputMode = 'mouse';
     });
 
     canvas.addEventListener('mousedown', () => {
@@ -830,6 +843,7 @@ function startGame() {
     waveTimer = 0;
     timeOfDay = 0;
     shoulderTimer = 0;
+    nextDrumSpawnTime = 3000; // 3 sekundy bezpiecznego startu przed pierwszym bębnem
     
     // Reset systemu znaków miast
     // Przemieszaj miasta (zachowaj Skawina na początku)
